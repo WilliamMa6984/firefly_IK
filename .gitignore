@@ -1,0 +1,6 @@
+# Ignore everything
+*
+
+# Except...
+!firefly_algorithm.py
+!.gitignore
