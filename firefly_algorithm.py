@@ -351,8 +351,8 @@ def debug_profile():
     p.sort_stats('cumulative').print_stats("firefly_algorithm.py", 10)
 
 if __name__ == "__main__":
-    # debug_profile()
+    debug_profile()
     # debug()
     # finetune_FA_IK()
-    graph_FA_IK()
+    # graph_FA_IK()
     print("wait")
