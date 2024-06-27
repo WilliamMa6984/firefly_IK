@@ -36,8 +36,9 @@ class Firefly():
     def angle_dist(self, targetTf):
         # http://www.boris-belousov.net/2016/12/01/quat-dist/
         R = targetTf[0:3, 0:3] @ np.transpose(self.Tf[0:3, 0:3])
-        trace = np.trace(R)
-        theta = math.acos((trace - 1)/2)
+        trace = math.floor(np.trace(R) * 10000) / 10000.0 # Round to nearest 4 decimals
+
+        theta = math.acos((trace - 1)/2.0)
         return theta
 
     def compute_I(self, targetTf, gamma):
@@ -57,8 +58,8 @@ class Firefly():
         # self.position = self.position + beta*diff + alpha*rand_angles(num_angles)
         self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
 
-    # def random_walk(self, alpha):
-    #     self.position = self.position + rand_angles(num_angles)*alpha
+    def random_walk(self, alpha):
+        self.position = self.position + rand_angles(num_angles)*alpha
 
 def rand_angles(n):
     return (np.random.rand(n)-0.5)*pi*2
@@ -113,12 +114,12 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
             best_ff = fireflies[best_i]
 
         # Random walk the best firefly
-        # fireflies[best_i].random_walk(alpha)
-        # fireflies[best_i].compute_fkine()
-        # fireflies[best_i].compute_I(target_Tf, gamma)
+        fireflies[best_i].random_walk(alpha)
+        fireflies[best_i].compute_fkine()
+        fireflies[best_i].compute_I(target_Tf, gamma)
 
         t = t + 1
-        alpha = alpha_new(alpha, t+1, alpha0)
+        alpha = alpha_new(alpha, t, alpha0)
         
         # Misc.
         if (graph):
@@ -146,16 +147,13 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
         return best_ff
 
 def alpha_new(alpha, t, alpha0): # NOTE: May result in premature convergence
-    # alpha_n = alpha0/180
+    # alpha_n = alpha0/180.0
     # delta = (alpha_n/alpha0)**(1/n)
 
-    x = 50 # Amount of time before start alpha reduction
-    if (t <= x):
-        return alpha
-    else:
-        delta = 1 - (0.005)**(1/(t-x)) # from Yang
-        
-        return delta*alpha
+    x = 200 # Amount of time before start alpha reduction
+    delta = 1 - (0.005)**(x/(t)) # from Yang
+    
+    return delta*alpha
 
 def get_best(fireflies):
     intensities = np.array([ff.intensity for ff in fireflies])
