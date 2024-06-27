@@ -124,7 +124,7 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
         fireflies[best_i].compute_I(target_Tf, gamma)
 
         t = t + 1
-        alpha = alpha_new(alpha, t, alpha0)
+        alpha = alpha_new(alpha, t, maxGenerations)
         
         # Misc.
         if (graph):
@@ -151,12 +151,9 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
     else:
         return best_ff
 
-def alpha_new(alpha, t, alpha0): # NOTE: May result in premature convergence
-    # alpha_n = alpha0/180.0
-    # delta = (alpha_n/alpha0)**(1/n)
-
-    x = 100.0
-    delta = 1 - (0.005)**(x/(t)) # from Yang
+def alpha_new(alpha, t, maxGenerations): # NOTE: May result in premature convergence
+    x = maxGenerations / 3.0
+    delta = 1 - 0.005**(x/t) # from Yang
     
     return delta*alpha
 
@@ -171,13 +168,6 @@ def f_kine(angles):
     th4 = angles[3]
     th5 = angles[4]
     th6 = angles[5]
-
-    # From MATLAB script
-    # Tf = np.array([[sin(th6)*(cos(th4)*sin(th1) - sin(th4)*(cos(th1)*sin(th2)*sin(th3) - cos(th1)*cos(th2)*cos(th3))) + cos(th6)*(sin(th5)*(sin(th1)*sin(th4) + cos(th4)*(cos(th1)*sin(th2)*sin(th3) - cos(th1)*cos(th2)*cos(th3))) - cos(th5)*(cos(th1)*cos(th2)*sin(th3) + cos(th1)*cos(th3)*sin(th2))), cos(th6)*(cos(th4)*sin(th1) - sin(th4)*(cos(th1)*sin(th2)*sin(th3) - cos(th1)*cos(th2)*cos(th3))) - sin(th6)*(sin(th5)*(sin(th1)*sin(th4) + cos(th4)*(cos(th1)*sin(th2)*sin(th3) - cos(th1)*cos(th2)*cos(th3))) - cos(th5)*(cos(th1)*cos(th2)*sin(th3) + cos(th1)*cos(th3)*sin(th2))), cos(th5)*(sin(th1)*sin(th4) + cos(th4)*(cos(th1)*sin(th2)*sin(th3) - cos(th1)*cos(th2)*cos(th3))) + sin(th5)*(cos(th1)*cos(th2)*sin(th3) + cos(th1)*cos(th3)*sin(th2)), 115*cos(th5)*(sin(th1)*sin(th4) + cos(th4)*(cos(th1)*sin(th2)*sin(th3) - cos(th1)*cos(th2)*cos(th3))) - 220*cos(th1)*sin(th2) + 115*sin(th5)*(cos(th1)*cos(th2)*sin(th3) + cos(th1)*cos(th3)*sin(th2)) - 220*cos(th1)*cos(th2)*sin(th3) - 220*cos(th1)*cos(th3)*sin(th2)],
-    # [sin(th6)*(cos(th1)*cos(th4) + sin(th4)*(sin(th1)*sin(th2)*sin(th3) - cos(th2)*cos(th3)*sin(th1))) + cos(th6)*(sin(th5)*(cos(th1)*sin(th4) - cos(th4)*(sin(th1)*sin(th2)*sin(th3) - cos(th2)*cos(th3)*sin(th1))) + cos(th5)*(cos(th2)*sin(th1)*sin(th3) + cos(th3)*sin(th1)*sin(th2))), cos(th6)*(cos(th1)*cos(th4) + sin(th4)*(sin(th1)*sin(th2)*sin(th3) - cos(th2)*cos(th3)*sin(th1))) - sin(th6)*(sin(th5)*(cos(th1)*sin(th4) - cos(th4)*(sin(th1)*sin(th2)*sin(th3) - cos(th2)*cos(th3)*sin(th1))) + cos(th5)*(cos(th2)*sin(th1)*sin(th3) + cos(th3)*sin(th1)*sin(th2))), cos(th5)*(cos(th1)*sin(th4) - cos(th4)*(sin(th1)*sin(th2)*sin(th3) - cos(th2)*cos(th3)*sin(th1))) - sin(th5)*(cos(th2)*sin(th1)*sin(th3) + cos(th3)*sin(th1)*sin(th2)), 220*sin(th1)*sin(th2) + 115*cos(th5)*(cos(th1)*sin(th4) - cos(th4)*(sin(th1)*sin(th2)*sin(th3) - cos(th2)*cos(th3)*sin(th1))) - 115*sin(th5)*(cos(th2)*sin(th1)*sin(th3) + cos(th3)*sin(th1)*sin(th2)) + 220*cos(th2)*sin(th1)*sin(th3) + 220*cos(th3)*sin(th1)*sin(th2)],
-    # [cos(th6)*(cos(th5)*(cos(th2)*cos(th3) - sin(th2)*sin(th3)) - cos(th4)*sin(th5)*(cos(th2)*sin(th3) + cos(th3)*sin(th2))) + sin(th4)*sin(th6)*(cos(th2)*sin(th3) + cos(th3)*sin(th2)),                                                                                                   cos(th6)*sin(th4)*(cos(th2)*sin(th3) + cos(th3)*sin(th2)) - sin(th6)*(cos(th5)*(cos(th2)*cos(th3) - sin(th2)*sin(th3)) - cos(th4)*sin(th5)*(cos(th2)*sin(th3) + cos(th3)*sin(th2))),                                                         - sin(th5)*(cos(th2)*cos(th3) - sin(th2)*sin(th3)) - cos(th4)*cos(th5)*(cos(th2)*sin(th3) + cos(th3)*sin(th2)),                                                                                220*cos(th2) + 220*cos(th2)*cos(th3) - 220*sin(th2)*sin(th3) - 115*sin(th5)*(cos(th2)*cos(th3) - sin(th2)*sin(th3)) - 115*cos(th4)*cos(th5)*(cos(th2)*sin(th3) + cos(th3)*sin(th2)) + 155],
-    # [                                                                                                                                                                                0,                                                                                                                                                                                                                                                                                     0,                                                                                                                                                                      0,                                                                                                                                                                                                                                                                        1]])
-    # return Tf
 
     def DH2tform(th, d, A, al):
         T = np.array([
@@ -382,10 +372,10 @@ if __name__ == "__main__":
         'n': 10
     }
 
-    # debug_profile(arg)
+    debug_profile(arg)
     # debug(arg)
     # finetune_FA_IK()
-    graph_FA_IK(arg)
+    # graph_FA_IK(arg)
 
     # calc_angle_intensity_mult()
     print("wait")
