@@ -155,7 +155,7 @@ def alpha_new(alpha, t, alpha0): # NOTE: May result in premature convergence
     # alpha_n = alpha0/180.0
     # delta = (alpha_n/alpha0)**(1/n)
 
-    x = 200 # Amount of time before start alpha reduction
+    x = 100.0
     delta = 1 - (0.005)**(x/(t)) # from Yang
     
     return delta*alpha
@@ -276,20 +276,21 @@ def finetune_FA_IK():
     print(best_i)
 
 
-def graph_task(maxGenerations):
-    alpha = 0.05
-    beta = 0.5
-    gamma = 0.00001 # multiplier on intensity
+def graph_task(arg):
+    alpha = arg['alpha']
+    beta = arg['beta']
+    gamma = arg['gamma']
 
-    n = 20
+    maxGenerations = arg['maxGenerations']
+    n = arg['n']
 
     target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
 
     return firefly_IK(target_Tf, maxGenerations, n, graph=True, alpha0=alpha, beta=beta, gamma=gamma)
 
-def graph_FA_IK():
+def graph_FA_IK(arg):
+    maxGenerations = arg['maxGenerations']
 
-    maxGenerations = 500
     num_times = 30
 
     import multiprocessing as mp
@@ -297,7 +298,9 @@ def graph_FA_IK():
     x = np.array(list(range(1, maxGenerations+1)))
     
     pool = mp.Pool()
-    ans = pool.map(graph_task, np.ones(num_times)*maxGenerations)
+    a = []
+    [a.append(arg) for _ in range(num_times)]
+    ans = pool.map(graph_task, a)
 
     fig, ax = plt.subplots(2)
     for i in range(0,num_times):
@@ -309,13 +312,13 @@ def graph_FA_IK():
     pool.close()
 
 
-def debug():
-    alpha = 0.05
-    beta = 0.5
-    gamma = 0.00001 # multiplier on intensity
+def debug(arg):
+    alpha = arg['alpha']
+    beta = arg['beta']
+    gamma = arg['gamma']
 
-    maxGenerations = 500
-    n = 20
+    maxGenerations = arg['maxGenerations']
+    n = arg['n']
 
     target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
 
@@ -335,8 +338,8 @@ def debug():
     print("Target transform is: ")
     print(target_Tf)
 
-def debug_profile():
-    cProfile.run("debug()", 'restats')
+def debug_profile(arg):
+    cProfile.run("debug(arg)", 'restats')
     p = pstats.Stats('restats')
     p.sort_stats('cumulative').print_stats("firefly_algorithm.py", 10)
 
@@ -371,10 +374,18 @@ def calc_angle_intensity_mult():
     print(euc_d_avg_outer / theta_avg_outer)
 
 if __name__ == "__main__":
-    # debug_profile()
-    # debug()
+    arg = {
+        'alpha': 0.05,
+        'beta': 0.5,
+        'gamma': 0.00001,
+        'maxGenerations': 300,
+        'n': 10
+    }
+
+    # debug_profile(arg)
+    # debug(arg)
     # finetune_FA_IK()
-    graph_FA_IK()
+    graph_FA_IK(arg)
 
     # calc_angle_intensity_mult()
     print("wait")
