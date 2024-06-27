@@ -36,10 +36,15 @@ class Firefly():
     def angle_dist(self, targetTf):
         # http://www.boris-belousov.net/2016/12/01/quat-dist/
         R = targetTf[0:3, 0:3] @ np.transpose(self.Tf[0:3, 0:3])
-        trace = math.floor(np.trace(R) * 10000) / 10000.0 # Round to nearest 4 decimals
+        trace = np.trace(R)
 
-        theta = math.acos((trace - 1)/2.0)
-        return theta
+        try:
+            theta = math.acos((trace - 1)/2.0)
+            return theta
+        except: # Edge case: trace returns 3.00...01 - causes acos(1.00...01) error
+            trace_r = math.floor(trace * 10000) / 10000.0 # Round to nearest 4 decimals
+            theta = math.acos((trace_r - 1)/2.0)
+            return theta
 
     def compute_I(self, targetTf, gamma):
         angle_mult = 100 # From calc_angle_intensity_mult
@@ -366,10 +371,10 @@ def calc_angle_intensity_mult():
     print(euc_d_avg_outer / theta_avg_outer)
 
 if __name__ == "__main__":
-    debug_profile()
+    # debug_profile()
     # debug()
     # finetune_FA_IK()
-    # graph_FA_IK()
+    graph_FA_IK()
 
     # calc_angle_intensity_mult()
     print("wait")
