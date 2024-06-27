@@ -19,11 +19,9 @@ num_angles = 6
 class Firefly():
     position = []
     intensity = 0
-    ghost = np.zeros(num_angles) # ghost of best firefly to follow
     Tf = None
 
     def __init__(self, position):
-        # Random distr of fireflies, 6 angles between -pi to pi
         self.position = position
         self.intensity = 0
         self.compute_fkine()
@@ -34,14 +32,13 @@ class Firefly():
         return euc_d
 
     def angle_dist(self, targetTf):
-        # http://www.boris-belousov.net/2016/12/01/quat-dist/
         R = targetTf[0:3, 0:3] @ np.transpose(self.Tf[0:3, 0:3])
         trace = np.trace(R)
 
         try:
             theta = math.acos((trace - 1)/2.0)
             return theta
-        except: # Edge case: trace returns 3.00...01 - causes acos(1.00...01) error
+        except: # Edge case: trace returns 3.00...01 - causes acos(~) error
             trace_r = math.floor(trace * 10000) / 10000.0 # Round to nearest 4 decimals
             theta = math.acos((trace_r - 1)/2.0)
             return theta
@@ -195,6 +192,53 @@ def f_kine(angles):
 
     return Tf_out
 
+def solve_IK(target_Tf, arg):
+    alpha = arg['alpha']
+    beta = arg['beta']
+    gamma = arg['gamma']
+
+    maxGenerations = arg['maxGenerations']
+    n = arg['n']
+
+    dist_tol_mm = 1
+    angle_tol_rad = 0.017 # 1 degree
+
+    t = 0
+    t_cutoff = 10
+
+    while True:
+        sln = firefly_IK(target_Tf, maxGenerations, n, alpha0=alpha, beta=beta, gamma=gamma)
+
+        # Check solution -> within tolerances
+        if (sln.euclid_dist(target_Tf) < dist_tol_mm and sln.angle_dist(target_Tf) < angle_tol_rad):
+            print("Completed in " + str(t) + " FA loops")
+
+            print("Solution to IK is: ")
+            print(sln.position)
+
+            print("Euclid distance is: ")
+            print(sln.euclid_dist(target_Tf))
+            print("Angle distance is: ")
+            print(sln.angle_dist(target_Tf))
+
+            print("Transform is: ")
+            print(f_kine(sln.position))
+
+            print("Target transform is: ")
+            print(target_Tf)
+
+            return sln.position
+
+        if (t > t_cutoff):
+            print("Firefly timeout reached, breaking...")
+
+            print("Target transform is: ")
+            print(target_Tf)
+
+            return None
+
+        t = t + 1
+
 def finetune_FA_IK():
 
     maxGenerations = 50
@@ -265,7 +309,6 @@ def finetune_FA_IK():
     print(best_ang_d)
     print(best_i)
 
-
 def graph_task(arg):
     alpha = arg['alpha']
     beta = arg['beta']
@@ -300,7 +343,6 @@ def graph_FA_IK(arg):
     plt.show()
     
     pool.close()
-
 
 def debug(arg):
     alpha = arg['alpha']
@@ -372,10 +414,21 @@ if __name__ == "__main__":
         'n': 10
     }
 
-    debug_profile(arg)
+    # calc_angle_intensity_mult()
+
+    # debug_profile(arg)
     # debug(arg)
     # finetune_FA_IK()
     # graph_FA_IK(arg)
 
-    # calc_angle_intensity_mult()
+
+    from time import perf_counter
+    start = perf_counter()
+
+    target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
+    solve_IK(target_Tf, arg)
+
+    end = perf_counter()
+    print("Completed FA-IK in " + str(end-start) + "s")
+
     print("wait")
