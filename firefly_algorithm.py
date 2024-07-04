@@ -6,6 +6,7 @@ import math
 import random
 import itertools as it
 from math import cos, sin, pi
+import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,42 +50,31 @@ class Firefly():
     def compute_I(self, targetTf, gamma, preemptcond=None):
         d = self.euclid_dist(targetTf)
         theta = self.angle_dist(targetTf)
-        """
+        
         if (preemptcond is not None):
             if (d < preemptcond["dist_tol_mm"] and theta < preemptcond["angle_tol_rad"]):
                 self.intensity = 1
                 return
-            
-            if (d < preemptcond["dist_tol_mm"]):
-                self.d_toggle = 0
-            else:
-                self.d_toggle = 1
-            
-            if (theta < preemptcond["angle_tol_rad"]):
-                self.angle_toggle = 0
-            else:
-                self.angle_toggle = 1
 
         # ===================== USER TO MODIFY =====================
         # angle_mult = 100.0 # default
         
-        # # Normalisation (range of 0-100)
-        d_max = 710.0
+        # Normalisation (range of 0-100)
+        d_max = 710.0 
         theta_max = pi
         d_min = 0
         theta_min = 0
 
-        # if (preemptcond is not None):
-        # d_min = preemptcond["dist_tol_mm"]
-        # theta_min = preemptcond["angle_tol_rad"]
+        if (preemptcond is not None):
+            d_min = preemptcond["dist_tol_mm"]
+            theta_min = preemptcond["angle_tol_rad"]
 
-        d_norm = (d - d_min) / (d_max - d_min) * 1500
-        theta_norm = (abs(theta) - theta_min) / (theta_max - theta_min) * 1500
+        d_norm = (d - d_min) / (d_max - d_min)
+        theta_norm = (abs(theta) - theta_min) / (theta_max - theta_min)
         # ===================== END USER TO MODIFY =====================
         
-        # self.intensity = 0.5 / (1 + gamma*d_norm) + 0.5 / (1 + gamma*theta_norm)
-        self.intensity = 0.5 / (1 + self.d_toggle*gamma*d_norm) + 0.5 / (1 + self.angle_toggle*gamma*theta_norm)
-        """
+        self.intensity = 0.5 / (1 + gamma*d_norm*10) + 0.5 / (1 + gamma*theta_norm)
+        # self.intensity = 0.5 / (1 + gamma*d) + 0.5 / (1 + angle_mult*gamma*theta)
 
     def compute_fkine(self):
         self.Tf = f_kine(self.position)
@@ -92,8 +82,8 @@ class Firefly():
     def move(self, other, alpha, beta, gamma):
         diff = other.position - self.position
         d = np.linalg.norm(diff) # sqrt(sum(abs((self.__position - better_position))))
-        # self.position = self.position + beta*diff + alpha*rand_angles(num_angles)
-        self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
+        self.position = self.position + beta*diff + alpha*rand_angles(num_angles)
+        # self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
 
     def random_walk(self, alpha):
         self.position = self.position + rand_angles(num_angles)*alpha
@@ -139,8 +129,9 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
     while (t < maxGenerations):
         for i in range(n):
             for j in range(n): # nlog(n) loop
-                r = np.sum((fireflies[j].position - fireflies[i].position)**2)
-                if (fireflies[i].intensity < fireflies[j].intensity*math.exp(-gamma*r)):
+                # r = np.sum((fireflies[j].position - fireflies[i].position)**2)
+                # if (fireflies[i].intensity < fireflies[j].intensity*math.exp(-gamma*r)):
+                if (fireflies[i].intensity < fireflies[j].intensity):
                     fireflies[i].move(fireflies[j], alpha, beta, gamma)
                     fireflies[i].compute_fkine()
                     fireflies[i].compute_I(target_Tf, gamma, preemptcond)
@@ -157,9 +148,9 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
         # Get current best firefly
         best_i = get_best(fireflies)
         if (best_ff is None or fireflies[best_i].intensity > best_ff.intensity):
-            best_ff = fireflies[best_i]
+            best_ff = copy.deepcopy(fireflies[best_i])
 
-        # Random walk the best firefly
+        # # Random walk the best firefly
         # fireflies[best_i].random_walk(alpha)
         # fireflies[best_i].compute_fkine()
         # fireflies[best_i].compute_I(target_Tf, gamma, preemptcond)
@@ -196,6 +187,10 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
 
     # Return value
     if (graph):
+        print("Best=====")
+        print(best_ff.position)
+        print(best_ff.euclid_dist(target_Tf))
+        print(best_ff.angle_dist(target_Tf))
         return [d_out, angle_out]
     else:
         return best_ff
@@ -449,12 +444,12 @@ def debug(arg):
 
     preemptcond = arg['preemptcond']
 
-    target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
-    [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
-    [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
-    [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
+    # target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
+    # [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
+    # [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
+    # [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
 
-    # target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
+    target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
 
     sln = firefly_IK(target_Tf, maxGenerations, n, debug=False, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
 
@@ -481,7 +476,7 @@ if __name__ == "__main__":
     arg = {
         'alpha': 0.125,
         'beta': 0.3,
-        'gamma': 0.0001,
+        'gamma': 0.8,
         'maxGenerations': 300,
         'n': 20,
         'preemptcond': {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
@@ -490,8 +485,8 @@ if __name__ == "__main__":
 
     # debug_profile(arg)
     # debug(arg)
-    finetune_FA_IK()
-    # graph_FA_IK(arg)
+    # finetune_FA_IK()
+    graph_FA_IK(arg)
 
 
     # from time import perf_counter
