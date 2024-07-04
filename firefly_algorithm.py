@@ -8,6 +8,8 @@ import itertools as it
 from math import cos, sin, pi
 import copy
 
+import operator
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -21,9 +23,6 @@ class Firefly():
     position = []
     intensity = 0
     Tf = None
-
-    d_toggle = 1
-    angle_toggle = 1
 
     def __init__(self, position):
         self.position = position
@@ -59,8 +58,8 @@ class Firefly():
         # ===================== USER TO MODIFY =====================
         # angle_mult = 100.0 # default
         
-        # Normalisation (range of 0-100)
-        d_max = 710.0 
+        # Normalisation (range of 0-1)
+        d_max = 710.0 # sum of link lengths
         theta_max = pi
         d_min = 0
         theta_min = 0
@@ -73,7 +72,8 @@ class Firefly():
         theta_norm = (abs(theta) - theta_min) / (theta_max - theta_min)
         # ===================== END USER TO MODIFY =====================
         
-        self.intensity = 0.5 / (1 + gamma*d_norm*10) + 0.5 / (1 + gamma*theta_norm)
+        # self.intensity = 0.5 / (1 + gamma*d_norm) + 0.5 / (1 + gamma*theta_norm)
+        self.intensity = 0.5 / (1 + gamma*d_norm**2) + 0.5 / (1 + gamma*theta_norm**2)
         # self.intensity = 0.5 / (1 + gamma*d) + 0.5 / (1 + angle_mult*gamma*theta)
 
     def compute_fkine(self):
@@ -81,19 +81,28 @@ class Firefly():
 
     def move(self, other, alpha, beta, gamma):
         diff = other.position - self.position
-        d = np.linalg.norm(diff) # sqrt(sum(abs((self.__position - better_position))))
+        # d = np.linalg.norm(diff) # sqrt(sum(abs((self.__position - better_position))))
         self.position = self.position + beta*diff + alpha*rand_angles(num_angles)
         # self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
 
     def random_walk(self, alpha):
         self.position = self.position + rand_angles(num_angles)*alpha
 
+def check_angle(q):
+    constraints = [pi, pi*160/180, pi*160/180, pi, pi*160/180, pi]
+    neg = q / np.abs(q)
+
+    ans = neg * np.minimum(np.abs(q), constraints)
+    return ans
+
 def rand_angles(n):
-    return (np.random.rand(n)-0.5)*pi*2
+    q = (np.random.rand(n)-0.5)*pi*2
+    return check_angle(q)
 
 def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.05, beta=0.02, gamma=0.08, preemptcond=None):
     d_out = []
     angle_out = []
+    i_out = []
     alpha = alpha0
 
     # Generate initial population
@@ -128,7 +137,7 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
     
     while (t < maxGenerations):
         for i in range(n):
-            for j in range(n): # nlog(n) loop
+            for j in range(n):
                 # r = np.sum((fireflies[j].position - fireflies[i].position)**2)
                 # if (fireflies[i].intensity < fireflies[j].intensity*math.exp(-gamma*r)):
                 if (fireflies[i].intensity < fireflies[j].intensity):
@@ -139,29 +148,35 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
                         print("Preempt t=" + str(t))
 
                         if (graph):
-                            d_out.append(best_ff.euclid_dist(target_Tf))
-                            angle_out.append(best_ff.angle_dist(target_Tf))
-                            return [d_out, angle_out]
+                            d_out.append(fireflies[i].euclid_dist(target_Tf))
+                            angle_out.append(fireflies[i].angle_dist(target_Tf))
+                            i_out.append(fireflies[i].intensity)
+                            return [d_out, angle_out, i_out]
                         else:
                             return fireflies[i]
 
         # Get current best firefly
+        # fireflies.sort(key=operator.attrgetter('intensity'), reverse=True)
+        # best_i = 0
+        # if (best_ff is None or fireflies[best_i].intensity > best_ff.intensity):
+        #     best_ff = copy.deepcopy(fireflies[best_i])
         best_i = get_best(fireflies)
         if (best_ff is None or fireflies[best_i].intensity > best_ff.intensity):
             best_ff = copy.deepcopy(fireflies[best_i])
 
-        # # Random walk the best firefly
-        # fireflies[best_i].random_walk(alpha)
-        # fireflies[best_i].compute_fkine()
-        # fireflies[best_i].compute_I(target_Tf, gamma, preemptcond)
-        # if (preemptcond is not None and fireflies[best_i].intensity == 1):
-        #     print("Preempt")
-        #     if (graph):
-        #         d_out.append(best_ff.euclid_dist(target_Tf))
-        #         angle_out.append(best_ff.angle_dist(target_Tf))
-        #         return [d_out, angle_out]
-        #     else:
-        #         return fireflies[best_i]
+        # Random walk the best firefly
+        fireflies[best_i].random_walk(alpha)
+        fireflies[best_i].compute_fkine()
+        fireflies[best_i].compute_I(target_Tf, gamma, preemptcond)
+        if (preemptcond is not None and fireflies[best_i].intensity == 1):
+            print("Preempt")
+            if (graph):
+                d_out.append(fireflies[best_i].euclid_dist(target_Tf))
+                angle_out.append(fireflies[best_i].angle_dist(target_Tf))
+                i_out.append(fireflies[best_i].intensity)
+                return [d_out, angle_out, i_out]
+            else:
+                return fireflies[best_i]
 
         t = t + 1
         alpha = alpha_new(alpha, t, maxGenerations)
@@ -170,6 +185,7 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
         if (graph):
             d_out.append(best_ff.euclid_dist(target_Tf))
             angle_out.append(best_ff.angle_dist(target_Tf))
+            i_out.append(fireflies[i].intensity)
         if (debug and t % 4 == 0):
             print(fireflies[best_i].intensity)
             print(fireflies[best_i].position)
@@ -186,12 +202,15 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, alpha0=0.
             fig.canvas.flush_events()
 
     # Return value
+    print("No preempt:")
+    print(target_Tf)
     if (graph):
         print("Best=====")
         print(best_ff.position)
         print(best_ff.euclid_dist(target_Tf))
         print(best_ff.angle_dist(target_Tf))
-        return [d_out, angle_out]
+        print(best_ff.intensity)
+        return [d_out, angle_out, i_out]
     else:
         return best_ff
 
@@ -294,13 +313,12 @@ def finetune_task(args):
     alpha = args[0]
     beta = args[1]
     gamma = args[2]
-    gamma_i = args[3]
     
     maxGenerations = 400
     n_ff = 20
     
-    preemptcond = {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
-    # preemptcond = None
+    # preemptcond = {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
+    preemptcond = None
 
     target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
     
@@ -309,7 +327,7 @@ def finetune_task(args):
     # [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
     # [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
 
-    sln = firefly_IK(target_Tf, maxGenerations, n_ff, alpha0=alpha, beta=beta, gamma=gamma, gamma_i=gamma_i, preemptcond=preemptcond)
+    sln = firefly_IK(target_Tf, maxGenerations, n_ff, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
 
     # avg_d = avg_d + sln.euclid_dist(target_Tf)
     # avg_ang_d = avg_ang_d + sln.angle_dist(target_Tf)
@@ -318,21 +336,20 @@ def finetune_task(args):
 
 def finetune_FA_IK():
     # Search space
-    # alpha_s = [0.1]
-    # beta_s = [0.1]
-    # gamma_s = [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001]
+    # alpha_s = [0.5, 0.2, 0.02, 0.05, 0.002]
+    # beta_s = [0.5, 0.2, 0.02, 0.05, 0.002]
+    gamma_s = [0.8, 0.1, 0.01, 0.001]
     # alpha_s = [0.1, 0.01, 0.001]
     # beta_s = [0.1, 0.01, 0.001]
     # alpha_s = [0.05, 0.1, 0.15, 0.4, 0.8]
     # beta_s = [0.05, 0.1, 0.15, 0.4, 0.8]
     # alpha_s = [0.075, 0.1, 0.125]
     # beta_s = [0.3, 0.4, 0.6]
-    alpha_s = [0.125]
-    beta_s = [0.25]
-    gamma_s = [0.0001]
-    gamma_i_s = [100, 200, 400, 600, 800, 1000, 1500]
+    alpha_s = [0.5]
+    beta_s = [0.05]
+    # gamma_s = [0.0001]
 
-    search_space = list(it.product(alpha_s, beta_s, gamma_s, gamma_i_s))
+    search_space = list(it.product(alpha_s, beta_s, gamma_s))
 
     best_pair = [[],[],[]]
     best_d = None
@@ -401,12 +418,12 @@ def graph_task(arg):
 
     preemptcond = arg['preemptcond']
 
-    # target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
+    target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
     
-    target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
-    [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
-    [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
-    [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
+    # target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
+    # [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
+    # [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
+    # [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
 
     return firefly_IK(target_Tf, maxGenerations, n, graph=True, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
 
@@ -420,15 +437,18 @@ def graph_FA_IK(arg):
     [a.append(arg) for _ in range(num_times)]
     ans = pool.map(graph_task, a)
 
-    fig, ax = plt.subplots(2)
+    fig, ax = plt.subplots(3)
     for i in range(0,num_times):
         ax[0].set_yscale("log")
         ax[1].set_yscale("log")
+        ax[2].set_yscale("log")
 
         x = np.array(list(range(1, len(ans[i][0])+1)))
         ax[0].plot(x, ans[i][0], '-')
         x = np.array(list(range(1, len(ans[i][1])+1)))
         ax[1].plot(x, ans[i][1], '-')
+        x = np.array(list(range(1, len(ans[i][2])+1)))
+        ax[2].plot(x, 1-np.array(ans[i][2]), '-')
         
     plt.show()
     
@@ -474,10 +494,10 @@ def debug_profile(arg):
 
 if __name__ == "__main__":
     arg = {
-        'alpha': 0.125,
-        'beta': 0.3,
+        'alpha': 0.05,
+        'beta': 0.5,
         'gamma': 0.8,
-        'maxGenerations': 300,
+        'maxGenerations': 500,
         'n': 20,
         'preemptcond': {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
     }
