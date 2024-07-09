@@ -56,34 +56,34 @@ class Firefly():
                 return
 
         # ===================== USER TO MODIFY =====================
-        # angle_mult = 100.0 # default
+        angle_mult = 100.0 # default
         
-        # Normalisation (range of 0-1)
-        d_max = 710.0 # sum of link lengths
-        theta_max = pi
-        d_min = 0
-        theta_min = 0
+        # # Normalisation (range of 0-1)
+        # d_max = 710.0 # sum of link lengths
+        # theta_max = pi
+        # d_min = 0
+        # theta_min = 0
 
-        if (preemptcond is not None):
-            d_min = preemptcond["dist_tol_mm"]
-            theta_min = preemptcond["angle_tol_rad"]
+        # if (preemptcond is not None):
+        #     d_min = preemptcond["dist_tol_mm"]
+        #     theta_min = preemptcond["angle_tol_rad"]
 
-        d_norm = (d - d_min) / (d_max - d_min)
-        theta_norm = (abs(theta) - theta_min) / (theta_max - theta_min)
+        # d_norm = (d - d_min) / (d_max - d_min)
+        # theta_norm = (abs(theta) - theta_min) / (theta_max - theta_min)
         # ===================== END USER TO MODIFY =====================
         
-        # self.intensity = 0.5 / (1 + gamma*d_norm) + 0.5 / (1 + gamma*theta_norm)
-        self.intensity = 0.5 / (1 + gamma*d_norm**2) + 0.5 / (1 + gamma*theta_norm**2)
-        # self.intensity = 0.5 / (1 + gamma*d) + 0.5 / (1 + angle_mult*gamma*theta)
+        # self.intensity = 0.5 / (1.0 + gamma*d_norm) + 0.5 / (1.0 + gamma*theta_norm)
+        # self.intensity = 0.5 / (1.0 + 10.0*gamma*d_norm**2) + 0.5 / (1.0 + gamma*theta_norm**2)
+        self.intensity = 0.5 / (1.0 + gamma*d) + 0.5 / (1.0 + angle_mult*gamma*theta)
 
     def compute_fkine(self):
         self.Tf = f_kine(self.position)
 
     def move(self, other, alpha, beta, gamma):
         diff = other.position - self.position
-        # d = np.linalg.norm(diff) # sqrt(sum(abs((self.__position - better_position))))
-        self.position = self.position + beta*diff + alpha*rand_angles(num_angles)
-        # self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
+        d = np.linalg.norm(diff) # sqrt(sum(abs((self.__position - better_position))))
+        # self.position = self.position + beta*diff + alpha*rand_angles(num_angles)
+        self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
 
     def random_walk(self, alpha):
         self.position = self.position + rand_angles(num_angles)*alpha
@@ -416,7 +416,8 @@ def graph_task(arg):
     maxGenerations = arg['maxGenerations']
     n = arg['n']
 
-    preemptcond = arg['preemptcond']
+    # preemptcond = arg['preemptcond']
+    preemptcond = None
 
     target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
     
@@ -428,7 +429,7 @@ def graph_task(arg):
     return firefly_IK(target_Tf, maxGenerations, n, graph=True, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
 
 def graph_FA_IK(arg):
-    num_times = 8
+    num_times = 16
 
     import multiprocessing as mp
     
@@ -442,6 +443,9 @@ def graph_FA_IK(arg):
         ax[0].set_yscale("log")
         ax[1].set_yscale("log")
         ax[2].set_yscale("log")
+        ax[0].set_ylabel("Distance (mm)")
+        ax[1].set_ylabel("Angle (rad)")
+        ax[2].set_ylabel("Intensity (distance from 0)")
 
         x = np.array(list(range(1, len(ans[i][0])+1)))
         ax[0].plot(x, ans[i][0], '-')
@@ -449,7 +453,30 @@ def graph_FA_IK(arg):
         ax[1].plot(x, ans[i][1], '-')
         x = np.array(list(range(1, len(ans[i][2])+1)))
         ax[2].plot(x, 1-np.array(ans[i][2]), '-')
-        
+
+    # Averages
+    avg_d = 0
+    avg_angle = 0
+    ans_np = np.array(ans)
+    for i in range(0,num_times):
+        avg_d = avg_d + np.average(ans_np[:,0,-1])
+        avg_angle = avg_angle + np.average(ans_np[:,1,-1])
+    avg_d = avg_d / num_times
+    avg_angle = avg_angle / num_times
+    print("Averages: ")
+    print(avg_d)
+    print(avg_angle)
+    
+    # Accuracy
+    count_conv = 0.0
+    count = 0.0
+    for _ in range(0,num_times):
+        for i in range(len(ans_np[:,0,-1])):
+            if (ans_np[i,0,-1] < 0.1 and ans_np[i,1,-1] < 0.017):
+                count_conv = count_conv + 1.0
+            count = count + 1.0
+    print("Accuracy: " + str(count_conv/count))
+
     plt.show()
     
     pool.close()
@@ -496,8 +523,8 @@ if __name__ == "__main__":
     arg = {
         'alpha': 0.05,
         'beta': 0.5,
-        'gamma': 0.8,
-        'maxGenerations': 500,
+        'gamma': 0.0001,
+        'maxGenerations': 300,
         'n': 20,
         'preemptcond': {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
     }
