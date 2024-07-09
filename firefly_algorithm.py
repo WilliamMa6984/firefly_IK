@@ -35,16 +35,21 @@ class Firefly():
         return euc_d
 
     def angle_dist(self, targetTf):
-        R = targetTf[0:3, 0:3] @ np.transpose(self.Tf[0:3, 0:3])
-        trace = np.trace(R)
+        diff = targetTf[0:3, 0:3] - self.Tf[0:3, 0:3]
+        RMSE = np.linalg.norm(diff)
+        return RMSE
 
-        try:
-            theta = math.acos((trace - 1)/2.0)
-            return theta
-        except: # Edge case: trace returns 3.00...01 - causes acos(~) error
-            trace_r = np.fix(trace) # Round to nearest whole, towards 0
-            theta = math.acos((trace_r - 1)/2.0)
-            return theta
+        # # Problem: This method does not distinguish positive or negative trace
+        # R = targetTf[0:3, 0:3] @ np.transpose(self.Tf[0:3, 0:3])
+        # trace = np.trace(R)
+
+        # try:
+        #     theta = math.acos((trace - 1)/2.0)
+        #     return theta
+        # except: # Edge case: trace returns 3.00...01 - causes acos(~) error
+        #     trace_r = np.fix(trace) # Round to nearest whole, towards 0
+        #     theta = math.acos((trace_r - 1)/2.0)
+        #     return theta
 
     def compute_I(self, targetTf, gamma, preemptcond=None):
         d = self.euclid_dist(targetTf)
@@ -57,23 +62,8 @@ class Firefly():
 
         # ===================== USER TO MODIFY =====================
         angle_mult = 100.0 # default
-        
-        # # Normalisation (range of 0-1)
-        # d_max = 710.0 # sum of link lengths
-        # theta_max = pi
-        # d_min = 0
-        # theta_min = 0
-
-        # if (preemptcond is not None):
-        #     d_min = preemptcond["dist_tol_mm"]
-        #     theta_min = preemptcond["angle_tol_rad"]
-
-        # d_norm = (d - d_min) / (d_max - d_min)
-        # theta_norm = (abs(theta) - theta_min) / (theta_max - theta_min)
         # ===================== END USER TO MODIFY =====================
         
-        # self.intensity = 0.5 / (1.0 + gamma*d_norm) + 0.5 / (1.0 + gamma*theta_norm)
-        # self.intensity = 0.5 / (1.0 + 10.0*gamma*d_norm**2) + 0.5 / (1.0 + gamma*theta_norm**2)
         self.intensity = 0.5 / (1.0 + gamma*d) + 0.5 / (1.0 + angle_mult*gamma*theta)
 
     def compute_fkine(self):
@@ -218,7 +208,6 @@ def alpha_new(alpha, t, maxGenerations): # NOTE: May result in premature converg
     # x = maxGenerations / 3.0
     # x = 100
     # delta = 1 - 0.005**(x/t) # custom
-    # delta = 0.985
     delta = (0.005/0.9)**(1.0/maxGenerations) # Yang
     
     return delta*alpha
@@ -419,17 +408,19 @@ def graph_task(arg):
     # preemptcond = arg['preemptcond']
     preemptcond = None
 
-    target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
+    # target_Tf = f_kine(np.array([random.uniform(-pi, pi) for _ in range(num_angles)]))
     
-    # target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
-    # [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
-    # [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
-    # [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
+    # target_Tf = f_kine(np.array([-pi/2, -pi/2, -pi/2, -pi/2, -pi/2, -pi/2]))
+    
+    target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
+    [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
+    [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
+    [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
 
     return firefly_IK(target_Tf, maxGenerations, n, graph=True, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
 
 def graph_FA_IK(arg):
-    num_times = 16
+    num_times = 80
 
     import multiprocessing as mp
     
@@ -458,14 +449,19 @@ def graph_FA_IK(arg):
     avg_d = 0
     avg_angle = 0
     ans_np = np.array(ans)
-    for i in range(0,num_times):
-        avg_d = avg_d + np.average(ans_np[:,0,-1])
-        avg_angle = avg_angle + np.average(ans_np[:,1,-1])
-    avg_d = avg_d / num_times
-    avg_angle = avg_angle / num_times
+    
+    avg_d = np.average(ans_np[:,0,-1])
+    avg_angle = np.average(ans_np[:,1,-1])
+    
+    median_d = np.median(ans_np[:,0,-1])
+    median_ang_d = np.median(ans_np[:,1,-1])
+
     print("Averages: ")
     print(avg_d)
     print(avg_angle)
+    print("Medians: ")
+    print(median_d)
+    print(median_ang_d)
     
     # Accuracy
     count_conv = 0.0
@@ -521,10 +517,10 @@ def debug_profile(arg):
 
 if __name__ == "__main__":
     arg = {
-        'alpha': 0.05,
-        'beta': 0.5,
+        'alpha': 0.125,
+        'beta': 0.25,
         'gamma': 0.0001,
-        'maxGenerations': 300,
+        'maxGenerations': 500,
         'n': 20,
         'preemptcond': {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
     }
