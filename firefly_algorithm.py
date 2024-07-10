@@ -35,22 +35,22 @@ class Firefly():
         euc_d = np.linalg.norm(diff)
         return euc_d
 
-    # def tform2R(Tf):
-    #     m = Tf[0:3, 0:3]
-    #     r = R.from_matrix(m)
-    #     return r
+    def tform2R(self, Tf):
+        m = Tf[0:3, 0:3]
+        r = R.from_matrix(m)
+        return r
 
-    # def quat_dist(self, targetTf):
-    #     # Quaternion difference
-    #     r_t = tform2R(targetTf)
-    #     r_s = tform2R(self.Tf)
+    def quat_dist(self, targetTf):
+        # Quaternion difference
+        r_t = self.tform2R(targetTf)
+        r_s = self.tform2R(self.Tf)
 
-    #     # diff * q1 = q2
-    #     diff = r_t * r_s.inv()
+        # diff * q1 = q2
+        diff = r_t * r_s.inv()
 
-    #     # [x,y,z,w]
-    #     q = diff.as_quat()
-    #     return np.linalg.norm(q[0:3]) # https://www.sfu.ca/~mdevos/notes/comb_struct/quaternion.pdf
+        # [x,y,z,w]
+        q = diff.as_quat()
+        return np.linalg.norm(q[0:3]) # https://www.sfu.ca/~mdevos/notes/comb_struct/quaternion.pdf
 
     def angle_dist(self, targetTf):
         # # Transform matrix difference
@@ -406,9 +406,9 @@ def graph_task(arg):
     # preemptcond = arg['preemptcond']
     preemptcond = None
 
-    # target_Tf = f_kine(constrain_angles(rand_angles(num_angles)))
+    target_Tf = f_kine(constrain_angles(rand_angles(num_angles)))
     
-    target_Tf = f_kine(np.array([pi/2, pi/2, pi/2, pi/2, pi/2, pi/2]))
+    # target_Tf = f_kine(np.array([pi/2, pi/2, pi/2, pi/2, pi/2, pi/2]))
     
     # target_Tf = np.array([[ 5.90672098e-01, -7.80534494e-01, -2.04627410e-01, -2.12052914e+01],
     # [ 7.94408753e-01,  6.06979364e-01, -2.21536601e-02, -2.50164149e+00],
@@ -422,7 +422,7 @@ def graph_FA_IK(arg):
     import multiprocessing as mp
 
     preemptcond = arg['preemptcond']
-    num_times = 16
+    num_times = 100
     
     pool = mp.Pool()
     a = []
@@ -522,8 +522,8 @@ if __name__ == "__main__":
         'alpha': 0.05,
         'beta': 0.5,
         'gamma': 0.0001,
-        'maxGenerations': 500,
-        'n': 20,
+        'maxGenerations': 700,
+        'n': 10,
         'preemptcond': {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
     }
 
