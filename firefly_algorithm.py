@@ -32,7 +32,7 @@ class Firefly():
 
     def euclid_dist(self, targetTf):
         diff = targetTf[0:3,3] - self.Tf[0:3,3]
-        euc_d = np.linalg.norm(diff)
+        euc_d = np.linalg.norm(diff,2)
         return euc_d
 
     def tform2R(self, Tf):
@@ -50,18 +50,18 @@ class Firefly():
 
         # [x,y,z,w]
         q = diff.as_quat()
-        return np.linalg.norm(q[0:3]) # https://www.sfu.ca/~mdevos/notes/comb_struct/quaternion.pdf
+        return np.linalg.norm(q-[0,0,0,1],1)
 
     def angle_dist(self, targetTf):
         # # Transform matrix difference
         # # diff * T1 = T2
         # diffTf = targetTf[0:3,0:3] @ np.linalg.inv(self.Tf[0:3,0:3])
-        # norm = np.linalg.norm(diffTf - np.eye(3))
+        # norm = np.linalg.norm(diffTf - np.eye(3),2)
         # return norm
 
         # Matrix RMSE difference
         diff = targetTf[0:3,0:3] - self.Tf[0:3,0:3]
-        RMSE = np.linalg.norm(diff)
+        RMSE = np.linalg.norm(diff,2)
         return RMSE
 
     def compute_I(self, targetTf, gamma, angle_mult, preemptcond=None):
@@ -236,11 +236,11 @@ def f_kine(angles):
         ])
         return T
     
-    l1 = 155
-    l2 = 220
-    l3 = 45
-    l4 = 175
-    l5 = 115
+    l1 = 155.0
+    l2 = 220.0
+    l3 = 45.0
+    l4 = 175.0
+    l5 = 115.0
     T1 = DH2tform(-th1, l1, 0, pi/2)
     T2 = DH2tform(th2, 0, 0, -pi/2)
     T3 = DH2tform(0, l2, 0, pi/2)
@@ -494,9 +494,16 @@ def debug(arg):
     # [ 1.41496311e-01, -1.49472256e-01,  9.78589208e-01,  2.70310590e+02],
     # [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
 
-    target_Tf = f_kine(constrain_angles(rand_angles(num_angles)))
+    target_angles = constrain_angles(rand_angles(num_angles))
+    target_Tf = f_kine(target_angles)
+    print("Target angles: ")
+    print(target_angles)
 
+    from time import perf_counter
+    start = perf_counter()
     sln = firefly_IK(target_Tf, maxGenerations, n, debug=False, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
+    end = perf_counter()
+    print("Completed FA-IK in " + str(end-start) + "s")
 
     print("Solution to IK is: ")
     print(sln.position)
@@ -522,8 +529,8 @@ if __name__ == "__main__":
         'alpha': 0.05,
         'beta': 0.5,
         'gamma': 0.0001,
-        'maxGenerations': 700,
-        'n': 10,
+        'maxGenerations': 500,
+        'n': 20,
         'preemptcond': {"dist_tol_mm": 0.1, "angle_tol_rad": 0.017}
     }
 
