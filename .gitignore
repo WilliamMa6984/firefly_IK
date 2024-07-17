@@ -2,5 +2,12 @@
 *
 
 # Except...
+!MATLAB/
+!MATLAB/animation.m
+!MATLAB/six_dof_fkine.m
+!MATLAB/seven_dof_fkine.m
+!MATLAB/lib/
+!MATLAB/lib/*
 !firefly_algorithm.py
+!firefly_algorithm_7dof.py
 !.gitignore
