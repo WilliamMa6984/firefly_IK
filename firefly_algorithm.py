@@ -36,16 +36,28 @@ class Firefly():
         self.compute_fkine()
 
     def euclid_dist(self, targetTf):
+        """
+        Euclidean distance for x-y-z position of end effector
+        """
+
         diff = targetTf[0:3,3] - self.Tf[0:3,3]
         euc_d = np.linalg.norm(diff,2)
         return euc_d
 
     def tform2R(self, Tf):
+        """
+        Transform matrix to scipy.spacial.transform.Rotation object
+        """
+
         m = Tf[0:3, 0:3]
         r = R.from_matrix(m)
         return r
 
     def quat_dist(self, targetTf):
+        """
+        Quaternion fitness function
+        """
+
         # Quaternion difference
         r_t = self.tform2R(targetTf)
         r_s = self.tform2R(self.Tf)
@@ -57,7 +69,12 @@ class Firefly():
         q = diff.as_quat()
         return np.linalg.norm(q-[0,0,0,1],1)
 
+    # 
     def angle_dist(self, targetTf):
+        """
+        Orientation (transformation matrix) fitness function
+        """
+
         # # Transform matrix difference
         # # diff * T1 = T2
         # diffTf = targetTf[0:3,0:3] @ np.linalg.inv(self.Tf[0:3,0:3])
@@ -70,6 +87,10 @@ class Firefly():
         return RMSE
 
     def compute_I(self, targetTf, gamma, angle_mult, preemptcond=None):
+        """
+        Update this firefly's intensity
+        """
+
         d = self.euclid_dist(targetTf)
         theta = self.angle_dist(targetTf)
         
@@ -81,27 +102,52 @@ class Firefly():
         self.intensity = 0.5 / (1.0 + gamma*d) + 0.5 / (1.0 + angle_mult*gamma*theta)
 
     def compute_fkine(self):
+        """
+        Update forward kinematics result
+        """
+
         self.Tf = f_kine(self.position)
 
     def move(self, other, alpha, beta, gamma):
+        """
+        Move towards other firefly
+        """
+
         diff = other.position - self.position
         d = np.linalg.norm(diff,1) # sqrt(sum(abs((diff))))
         self.position = self.position + beta*np.exp(-gamma*(d**2))*diff + alpha*rand_angles(num_angles)
 
     def random_walk(self, alpha):
+        """
+        Add random amounts to each angle
+        """
+
         self.position = self.position + rand_angles(num_angles)*alpha
 
 def constrain_angles(q):
+    """
+    Constrain to certain maximum angles
+    """
+
     constraints = [pi, pi*160/180, pi*160/180, pi, pi*160/180, pi]
 
     ans = np.sign(q) * np.minimum(np.abs(q), constraints)
     return ans
 
 def rand_angles(n):
+    """
+    Generate random angles
+    """
+
     q = (np.random.rand(n)-0.5)*pi*2
     return q
 
 def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, save=False, alpha0=0.05, beta=0.02, gamma=0.08, angle_mult=100.0, preemptcond=None):
+
+    """
+    FA-IK implementation
+    """
+
     d_out = []
     angle_out = []
     i_out = []
@@ -175,8 +221,11 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, save=Fals
         fireflies[best_i].random_walk(alpha)
         fireflies[best_i].compute_fkine()
         fireflies[best_i].compute_I(target_Tf, gamma, angle_mult, preemptcond=preemptcond)
+
+        # Early stop condition
         if (preemptcond is not None and fireflies[best_i].intensity == 1):
             print("B Preempt t=" + str(t))
+
             if (graph):
                 d_out.append(fireflies[best_i].euclid_dist(target_Tf))
                 angle_out.append(fireflies[best_i].angle_dist(target_Tf))
@@ -228,15 +277,27 @@ def firefly_IK(target_Tf, maxGenerations, n, debug=False, graph=False, save=Fals
         return best_ff
 
 def alpha_new(alpha, maxGenerations): # NOTE: May result in premature convergence
+    """
+    Alpha decay function
+    """
+    
     delta = (0.005/0.9)**(1.0/maxGenerations) # Yang
     
     return delta*alpha
 
 def get_best(fireflies):
+    """
+    Get highest intensity firefly, as an index
+    """
+
     intensities = np.array([ff.intensity for ff in fireflies])
     return np.argmax(intensities)
 
 def f_kine(angles):
+    """
+    Forward kinematics model
+    """
+
     # ===================== USER TO MODIFY =====================
     th1 = angles[0]
     th2 = angles[1]
@@ -275,6 +336,11 @@ def f_kine(angles):
 # ===================== EXECUTION TASKS =====================
 
 def finetune_task(args):
+    """
+    Task to run FA-IK with the hyperparameters args=[alpha, beta, gamma]. 
+    Returns euclidean distance, rotation matrix error, and firefly intensity
+    """
+
     alpha = args[0]
     beta = args[1]
     gamma = args[2]
@@ -295,6 +361,10 @@ def finetune_task(args):
     return [sln.euclid_dist(target_Tf), sln.angle_dist(target_Tf), sln.intensity]
 
 def finetune_FA_IK():
+    """
+    Searches through the provided array of alpha, beta, gamma to find the best performing tuples
+    """
+
     # Search space
     # alpha_s = [0.1, 0.01]
     # beta_s = [0.1, 0.01]
@@ -370,6 +440,10 @@ def finetune_FA_IK():
     print(valid_pairs)
 
 def graph_task(arg):
+    """
+    Executes FA-IK, returns euclidean distance, rotation matrix error and firefly intensity over time (iterations)
+    """
+
     alpha = arg['alpha']
     beta = arg['beta']
     gamma = arg['gamma']
@@ -395,6 +469,10 @@ def graph_task(arg):
     return firefly_IK(target_Tf, maxGenerations, n, graph=True, alpha0=alpha, beta=beta, gamma=gamma, preemptcond=preemptcond)
 
 def graph_FA_IK(arg):
+    """
+    Graphs the euclidean distance, rotation matrix error and firefly intensity over time (iterations)
+    """
+
     from time import perf_counter
     import multiprocessing as mp
 
@@ -457,6 +535,10 @@ def graph_FA_IK(arg):
     plt.show()
 
 def save_FA_IK(arg):
+    """
+    Saves the firefly positions (motor angles) over time (iterations)
+    """
+
     from scipy.io import savemat
 
     alpha = arg['alpha']
@@ -489,6 +571,10 @@ def save_FA_IK(arg):
     print("Finished save")
 
 def debug(arg):
+    """
+    Executes FA-IK for debugging
+    """
+
     alpha = arg['alpha']
     beta = arg['beta']
     gamma = arg['gamma']
@@ -529,6 +615,10 @@ def debug(arg):
     print(target_Tf)
 
 def debug_profile(arg):
+    """
+    Executes FA-IK debugging with functions profiling 
+    """
+
     cProfile.run("debug(arg)", 'restats')
     p = pstats.Stats('restats')
     p.sort_stats('cumulative').print_stats("firefly_algorithm.py", 10)
