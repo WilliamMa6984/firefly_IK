@@ -1,14 +1,15 @@
 clear;
 
-load("python/graph_out.mat", "saved_ff");
-load("python/graph_out.mat", "input");
+% Data saved from python
+load("graph_out.mat", "saved_ff");
+load("graph_out.mat", "input");
 
 shape = size(saved_ff);
-step = shape(1) / 20;
 idx = 1;
 
 fig = figure(1);
 
+% For each of the given iterations -> graph (frame)
 for i=[1, 2, 3, 5, 7, 10, 15, 20, 30, 50, 100, 300, 500, 700, 1000, 1300, 1500, 1700, 2000]
     angles = saved_ff(i, :);
     
@@ -27,12 +28,13 @@ drawnow
 frame = getframe(fig);
 im{idx} = frame2im(frame);
 
-filename = "converge.gif"; % Specify the output file name
+% Save figures as gif
+filename = "converge.gif";
 for idx_ = 1:idx
     [A,map] = rgb2ind(im{idx_},256);
     if idx_ == 1
         imwrite(A,map,filename,"gif","LoopCount",Inf,"DelayTime", 0.5);
-    elseif idx_ == idx
+    elseif idx_ >= idx-1
         imwrite(A,map,filename,"gif","WriteMode","append","DelayTime", 1.5);
     else
         imwrite(A,map,filename,"gif","WriteMode","append","DelayTime", 0.5);
