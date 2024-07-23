@@ -11,3 +11,5 @@
 !firefly_algorithm.py
 !firefly_algorithm_7dof.py
 !.gitignore
+!GithubPagesThumbnail/
+!GithubPagesThumbnail/*
